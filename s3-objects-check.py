@@ -22,9 +22,7 @@ async def test_get_object(bucket_name, object_key, client):
     try:
         obj = await client.get_object(Bucket=bucket_name, Key=object_key, Range='bytes=0-9')
     except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'AccessDenied':
-            pass  # this is expected
-        else:
+        if e.response['Error']['Code'] != 'AccessDenied':
             LOGGER.error(f'Client error getting object {object_key} from {bucket_name}: {e}')
     except Exception as e:
         LOGGER.error(f'Unknown error getting object {object_key} from {bucket_name}: {e}')
@@ -68,12 +66,18 @@ async def test_bucket(bucket_name, bucket_region,
             LOGGER.error(f'Unable to list objects from bucket {bucket_name}: {e}')
         else:
             if "Contents" in p:
-                for obj in p["Contents"]:
-                    if obj.get('Size') > 0:
-                        object_tasks.append(test_object(bucket_name, bucket_region,
-                                                        obj.get('Key'),
-                                                        bb_client, anonymous_client,
-                                                        csv_writer))
+                object_tasks.extend(
+                    test_object(
+                        bucket_name,
+                        bucket_region,
+                        obj.get('Key'),
+                        bb_client,
+                        anonymous_client,
+                        csv_writer,
+                    )
+                    for obj in p["Contents"]
+                    if obj.get('Size') > 0
+                )
     await asyncio.gather(*object_tasks)
 
 
